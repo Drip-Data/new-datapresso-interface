@@ -1,0 +1,161 @@
+@font-face {
+  font-family: 'MiSans';
+  src: url('/fonts/MiSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MiSans';
+  src: url('/fonts/MiSans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MiSans';
+  src: url('/fonts/MiSans-Semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MiSans';
+  src: url('/fonts/MiSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Mapped from datapresso-improved-ui (1).html --bg-main: #F9FAFB; */
+    --background: 210 17% 97.1%; /* HSL for #F9FAFB */
+    /* Mapped from --text-primary: #1F2937; */
+    --foreground: 215 28% 17%; /* HSL for #1F2937 */
+
+    /* Mapped from --bg-card: #FFFFFF; */
+    --card: 0 0% 100%;
+    /* Mapped from --text-primary: #1F2937; (used for card text too) */
+    --card-foreground: 215 28% 17%;
+
+    /* Popover can be similar to card */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 17%;
+
+    /* Mapped from --primary-dark: #6941FF (chosen as main primary for stronger presence) */
+    --primary: 256 100% 62.7%; /* HSL for #6941FF */
+    /* Text on primary, assuming white for contrast with #6941FF */
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary can be a lighter shade or a complementary color */
+    /* Using a light gray from original palette --text-light: #9CA3AF; */
+    --secondary: 216 8% 65.1%; /* HSL for #9CA3AF */
+    --secondary-foreground: 215 28% 17%; /* Dark text on light secondary */
+
+    /* Muted can be similar to secondary or even lighter */
+    --muted: 210 17% 95%; /* Lighter than background for subtle contrast */
+    --muted-foreground: 215 16% 47%; /* Muted text color */
+
+    /* Accent can be --primary or another highlight color like --primary-html: #4EBFFF */
+    --accent: 202 100% 65%; /* HSL for #4EBFFF */
+    --accent-foreground: 0 0% 100%; /* White text on accent */
+
+    /* Mapped from --danger: #EF4444; */
+    --destructive: 0 84% 60%; /* HSL for #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    /* A common border color, e.g., light gray */
+    --border: 215 20% 87%; /* HSL for a light gray like #D1D5DB */
+    --input: 215 20% 87%; /* Input border same as general border */
+    --ring: 256 100% 62.7%; /* Ring color same as primary for focus */
+
+    /* --border-radius: 20px; from HTML. Tailwind config uses 'xl' for this. */
+    /* shadcn default radius is 0.5rem. We can keep it or change it.
+       If tailwind.config.ts sets 'DEFAULT' or 'xl' to 20px, this var might not be strictly needed here
+       unless shadcn components specifically use --radius. For consistency, let's set it.
+    */
+    --radius: 20px;
+  }
+
+  .dark {
+    /* Define dark theme variables if needed, for now, focusing on light theme matching */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 215 20.2% 65.1%;
+    
+    --radius: 20px; /* Ensure dark theme also uses this if consistent radius is desired */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'MiSans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; /* Added MiSans */
+    line-height: 1.5; /* From original HTML */
+  }
+}
+
+/* Custom scrollbar styles from WorkflowBuilderCard.tsx comments */
+/* For Webkit browsers */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px; /* Added width for vertical scrollbars too if needed */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9; /* bg-slate-100 */
+  border-radius: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #6366f1; /* A generic indigo, can be mapped to primary if desired */
+  /* background: hsl(var(--primary)); */ /* Alternative: use primary color */
+  border-radius: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4f46e5; /* Darker indigo */
+  /* background: hsl(var(--primary-dark)); */ /* Alternative: use darker primary */
+}
+
+/* For Firefox (partial support, thumb and track color only) */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #6366f1 #f1f5f9; /* thumb track */
+  /* scrollbar-color: hsl(var(--primary)) hsl(var(--muted)); */ /* Alternative */
+}
