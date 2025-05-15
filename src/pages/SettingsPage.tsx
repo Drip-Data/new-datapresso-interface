@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { AlertCircle, Save, Database, Cog, Globe, Key, Cpu, HardDrive, FolderCog, TestTube2, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertCircle, Save, Database, Cog, Globe, Key, Cpu, HardDrive, FolderCog, TestTube2, CheckCircle2, User, Briefcase } from 'lucide-react'; // Added User, Briefcase
 import { toast } from "sonner";
+import { useUser, UserProfile } from '@/contexts/UserContext'; // Import useUser
 
 // 通用样式，可以提取到一个样式文件或constants文件中
 const cardClass = "bg-white rounded-xl shadow-md border border-gray-200"; // Reverted to fixed light theme style
@@ -19,19 +20,37 @@ const formLabelClass = "block mb-1.5 text-sm font-medium text-text-primary-html"
 const formControlBaseClass = "w-full px-3 py-2 rounded-lg border-gray-300 bg-white text-sm text-text-primary-html placeholder:text-text-light-html focus:border-primary-dark focus:ring-1 focus:ring-primary-dark/50";
 
 const SettingsPage: React.FC = () => {
-  // 基本设置
-  const { theme, setTheme } = useTheme();
+  const { user, updateUserProfile, loginUser, isLoadingUser } = useUser();
+
+  // User Profile states
+  const [userNameInput, setUserNameInput] = useState('');
+  const [userRoleInput, setUserRoleInput] = useState('');
+
+  // Basic settings
+  const { theme, setTheme } = useTheme(); // theme is still managed locally for now
   const [currentTheme, setCurrentTheme] = useState<string | undefined>(undefined);
+  
   useEffect(() => {
-    // Initialize currentTheme when the component mounts or theme changes from useTheme
     setCurrentTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (user) {
+      setUserNameInput(user.name);
+      setUserRoleInput(user.role);
+    } else {
+      // If no user (e.g. fresh start, or after logout), clear inputs or set to defaults for login form
+      setUserNameInput(''); // Or some default like "新用户"
+      setUserRoleInput(''); // Or "数据爱好者"
+    }
+  }, [user]);
+
 
   const [language, setLanguage] = useState<string>('zh');
   const [autoSave, setAutoSave] = useState<boolean>(true);
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(5);
   
-  // 路径设置
+  // Path settings
   const [defaultSeedPath, setDefaultSeedPath] = useState<string>('./data/seeds/');
   const [defaultOutputPath, setDefaultOutputPath] = useState<string>('./output/generated_data/');
   const [defaultModelPath, setDefaultModelPath] = useState<string>('./output/trained_models/');
@@ -80,16 +99,32 @@ const SettingsPage: React.FC = () => {
   
   // 保存设置
   const handleSaveSettings = () => {
-    console.log('保存设置', {
+    // Save User Profile
+    if (user) { // If user exists, update
+      updateUserProfile({ name: userNameInput, role: userRoleInput });
+    } else { // If no user, this save action effectively logs them in with entered details
+      const newUserProfile: UserProfile = {
+        name: userNameInput || "新用户", // Fallback name
+        role: userRoleInput || "数据探索者", // Fallback role
+      };
+      loginUser(newUserProfile);
+    }
+
+    // Save other settings
+    console.log('保存其他设置', {
       language, currentTheme, autoSave, autoSaveInterval,
       defaultSeedPath, defaultOutputPath, defaultModelPath, defaultLogPath,
       dbConnection, dbType, maxConnections,
       openaiApiKey, anthropicApiKey, localApiEndpoint,
       maxThreads, memoryLimit, diskSpace, enableLogging
     });
-    // 实际保存逻辑
-    toast.success('设置已成功保存！');
+    // TODO: Implement actual saving logic for these other settings (e.g., to localStorage or a config file via ProjectContext if applicable)
+    toast.success('用户配置及其他设置已保存！');
   };
+  
+  if (isLoadingUser) {
+    return <div className="p-6">正在加载用户信息...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -113,6 +148,10 @@ const SettingsPage: React.FC = () => {
           
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="mb-6 bg-slate-100 p-1 rounded-lg">
+              <TabsTrigger value="profile" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm">
+                <User size={14} className="mr-1.5" />
+                用户配置
+              </TabsTrigger>
               <TabsTrigger value="general" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm">
                 <Globe size={14} className="mr-1.5" />
                 基本
@@ -134,6 +173,36 @@ const SettingsPage: React.FC = () => {
                 系统
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="profile" className="mt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={formGroupClass}>
+                  <Label htmlFor="user-name" className={formLabelClass}>用户名</Label>
+                  <Input
+                    id="user-name"
+                    value={userNameInput}
+                    onChange={(e) => setUserNameInput(e.target.value)}
+                    placeholder="输入您的用户名"
+                    className={formControlBaseClass}
+                  />
+                </div>
+                <div className={formGroupClass}>
+                  <Label htmlFor="user-role" className={formLabelClass}>角色/职位</Label>
+                  <Input
+                    id="user-role"
+                    value={userRoleInput}
+                    onChange={(e) => setUserRoleInput(e.target.value)}
+                    placeholder="例如：数据科学家"
+                    className={formControlBaseClass}
+                  />
+                </div>
+              </div>
+               {!user && (
+                <div className="mt-4 p-3 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 text-sm">
+                  当前为访客模式。输入信息并保存后将作为您的本地用户信息。
+                </div>
+              )}
+            </TabsContent>
             
             <TabsContent value="general" className="mt-0">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

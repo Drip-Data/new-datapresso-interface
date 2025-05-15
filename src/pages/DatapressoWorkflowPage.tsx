@@ -1,6 +1,7 @@
 import React, { useState, ChangeEvent, useEffect, useRef, useCallback } from 'react';
 import WorkflowBuilderCard from '@/components/WorkflowBuilderCard';
 import WorkflowActionsCard from '@/components/WorkflowActionsCard';
+// WorkflowConfigProvider and ProjectProvider will be moved to App.tsx
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -371,21 +372,25 @@ const DatapressoWorkflowPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState("design"); 
 
   return (
-    <div className="space-y-6 lg:space-y-8">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 sticky top-0 z-10 bg-white/90 backdrop-blur-sm shadow-sm">
-          <TabsTrigger value="design" className="py-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary-html data-[state=active]:text-primary-html rounded-none">Pipeline 设计与配置</TabsTrigger>
-          <TabsTrigger value="execute" className="py-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary-html data-[state=active]:text-primary-html rounded-none">执行与监控</TabsTrigger>
-        </TabsList>
-        <TabsContent value="design" className="mt-0">
-          <div className="space-y-6 lg:space-y-8">
-            <WorkflowBuilderCard />
-            <WorkflowActionsCard onSwitchToExecuteTab={() => setActiveTab('execute')} />
-          </div>
-        </TabsContent>
-        <TabsContent value="execute" className="mt-0"><ExecutionMonitorSection /></TabsContent>
-      </Tabs>
-    </div>
+    // <WorkflowConfigProvider> // Moved to App.tsx
+    //   <ProjectProvider>       // Moved to App.tsx
+        <div className="space-y-6 lg:space-y-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6 sticky top-0 z-10 bg-white/90 backdrop-blur-sm shadow-sm">
+              <TabsTrigger value="design" className="py-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary-html data-[state=active]:text-primary-html rounded-none">Pipeline 设计与配置</TabsTrigger>
+              <TabsTrigger value="execute" className="py-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary-html data-[state=active]:text-primary-html rounded-none">执行与监控</TabsTrigger>
+            </TabsList>
+            <TabsContent value="design" className="mt-0">
+              <div className="space-y-6 lg:space-y-8">
+                <WorkflowBuilderCard />
+                <WorkflowActionsCard onSwitchToExecuteTab={() => setActiveTab('execute')} />
+              </div>
+            </TabsContent>
+            <TabsContent value="execute" className="mt-0"><ExecutionMonitorSection /></TabsContent>
+          </Tabs>
+        </div>
+    //   </ProjectProvider>
+    // </WorkflowConfigProvider>
   );
 };
 

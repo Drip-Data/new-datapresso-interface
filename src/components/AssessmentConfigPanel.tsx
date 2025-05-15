@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react'; // Added useContext
+import { useApiKeys } from '@/contexts/ApiKeysContext'; // Added
+import { SUPPORTED_PROVIDERS, PREDEFINED_MODELS } from '@/config/llmConfig'; // Added
+import { toast } from "sonner"; // Added
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,7 +23,8 @@ interface SpecificMetricConfig {
 }
 
 // Renaming the component to FilteringConfigPanel
-const FilteringConfigPanel = () => {
+const FilteringConfigPanel = () => { // Assuming component name is correct as per file content
+  const { getApiKey, isKeyStored } = useApiKeys(); // Added
   const [selectedFilterMethod, setSelectedFilterMethod] = useState("multi_dimension_balanced");
 
   // Data Source (remains the same)
@@ -57,6 +61,14 @@ const FilteringConfigPanel = () => {
   const [outputType, setOutputType] = useState("default_output");
   const [customOutputPath, setCustomOutputPath] = useState("./output/filtered_data"); // Updated default
 
+  // States for API provider and model, similar to GenerationConfigPanel
+  // These might not be directly used by all filter methods, but are included for consistency
+  // and potential future use if some assessment/filtering tasks require LLM calls.
+  const [apiProvider, setApiProvider] = useState(SUPPORTED_PROVIDERS.find(p => p.requiresApiKey)?.id || SUPPORTED_PROVIDERS[0].id);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+
+
   const formSectionClass = "mb-8";
   const formSectionTitleClass = "text-lg font-bold text-text-primary-html mb-4"; // Changed font-semibold to font-bold
   const formGroupClass = "mb-4";
@@ -77,6 +89,46 @@ const FilteringConfigPanel = () => {
     ));
   };
 
+
+  // Effect to update available models based on selected provider and API key status
+  useEffect(() => {
+    const currentProviderConfig = SUPPORTED_PROVIDERS.find(p => p.id === apiProvider);
+    if (currentProviderConfig?.requiresApiKey && !isKeyStored(apiProvider)) {
+      // Only toast if the provider actually requires a key.
+      // For providers like 'local', this check is skipped.
+      if (currentProviderConfig.id !== 'local') { // Example: don't toast for 'local'
+          toast.error(`请先前往API Key设置页面填写 ${currentProviderConfig.name} 的 API Key`);
+      }
+      setAvailableModels([]);
+      setSelectedModel("");
+      return;
+    }
+
+    const modelsForProvider = PREDEFINED_MODELS[apiProvider] || [];
+    const modelOptions = modelsForProvider.map(modelName => ({ value: modelName, label: modelName }));
+    setAvailableModels(modelOptions);
+
+    if (modelOptions.length > 0) {
+      const currentSelectedModelStillAvailable = modelOptions.some(m => m.value === selectedModel);
+      if (!currentSelectedModelStillAvailable) {
+        setSelectedModel(modelOptions[0].value);
+      }
+    } else {
+      setSelectedModel("");
+    }
+  }, [apiProvider, isKeyStored, selectedModel]); // Ensure selectedModel is a dependency
+
+  const handleProviderChange = (newProviderId: string) => {
+    const providerConfig = SUPPORTED_PROVIDERS.find(p => p.id === newProviderId);
+    if (providerConfig?.requiresApiKey && !isKeyStored(newProviderId)) {
+       if (providerConfig.id !== 'local') {
+            toast.error(`请先前往API Key设置页面填写 ${providerConfig.name} 的 API Key`);
+       }
+      setAvailableModels([]);
+      setSelectedModel("");
+    }
+    setApiProvider(newProviderId);
+  };
 
   const handleSave = () => {
     const baseConfig = {
@@ -185,8 +237,8 @@ const FilteringConfigPanel = () => {
     <div className="bg-white p-0 rounded-xl shadow-lg border border-gray-200">
       <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center">
         <h3 className="text-xl font-semibold text-text-primary-html flex items-center">
-          <Filter size={22} className="mr-3 text-primary-dark" /> {/* Changed Icon */}
-          高级筛选层配置
+          <ShieldCheck size={22} className="mr-3 text-primary-dark" /> {/* Changed Icon to better reflect Assessment/Quality */}
+          质量评估与筛选配置 {/* Updated Title */}
         </h3>
         <div className="flex items-center space-x-2">
           <Button variant="outline" size="sm" className="text-xs hover:bg-primary-dark/10 hover:text-primary-dark focus-visible:ring-primary-dark/50" onClick={handleReset}><RotateCcw size={14} className="mr-1.5" />恢复默认</Button>
@@ -211,6 +263,40 @@ const FilteringConfigPanel = () => {
           </div>
         </div>
 
+        <div className="h-px bg-gray-200 my-6"></div>
+
+        {/* Optional: Add a section for Model Config if any filter methods require it */}
+        {/* This is a placeholder based on the task description's implication */}
+        {/* You can decide if this section is truly needed for AssessmentConfigPanel */}
+        <div className={`${formSectionClass} bg-slate-50 p-4 rounded-lg`}>
+          <h4 className={formSectionTitleClass}>评估模型配置 (可选)</h4>
+          <p className="text-xs text-gray-500 mb-3">如果某些评估/筛选方法需要调用大模型，请在此处配置。</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            <div className={formGroupClass}>
+              <Label htmlFor="assess-api-provider" className={formLabelClass}>服务商</Label>
+              <Select value={apiProvider} onValueChange={handleProviderChange}>
+                <SelectTrigger id="assess-api-provider" className={formControlBaseClass}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_PROVIDERS.map(provider => (
+                    <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={formGroupClass}>
+              <Label htmlFor="assess-selected-model" className={formLabelClass}>模型</Label>
+              <Select value={selectedModel} onValueChange={setSelectedModel} disabled={availableModels.length === 0}>
+                <SelectTrigger id="assess-selected-model" className={formControlBaseClass}>
+                  <SelectValue placeholder={availableModels.length === 0 ? "请先选择或配置服务商" : "选择模型"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((model) => (<SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        
         <div className="h-px bg-gray-200 my-6"></div>
 
         {renderFilterMethodSpecificParams()}

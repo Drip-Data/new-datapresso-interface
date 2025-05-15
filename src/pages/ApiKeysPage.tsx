@@ -1,4 +1,5 @@
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState, ChangeEvent, useEffect } from 'react';
+import { useApiKeys } from '@/contexts/ApiKeysContext'; // Changed to use the custom hook
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,10 +19,10 @@ interface ApiKey {
 }
 
 const ApiKeysPage: React.FC = () => {
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([
-    { id: '1', provider: 'openai', name: '默认OpenAI Key', key: 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxSAMPLE', addedDate: '2024-01-15' },
-    { id: '2', provider: 'anthropic', name: 'Claude Opus Key', key: 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxSAMPLE', addedDate: '2024-03-01' },
-  ]);
+  const { saveApiKey, getApiKey, removeApiKey: removeContextApiKey } = useApiKeys(); // Using the custom hook
+
+  // Representing local UI state for keys, which will be the source of truth for the table
+  const [managedApiKeys, setManagedApiKeys] = useState<ApiKey[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
   const [keyFormData, setKeyFormData] = useState<{ provider: ApiKey['provider']; name: string; key: string }>({
@@ -30,6 +31,22 @@ const ApiKeysPage: React.FC = () => {
     key: '',
   });
   const [showKeyId, setShowKeyId] = useState<string | null>(null);
+
+  // Load keys from context/localStorage into local state on mount
+  useEffect(() => {
+    const providers: ApiKey['provider'][] = ['openai', 'anthropic', 'deepseek', 'other']; // Consider getting this from a config
+    const loadedKeys = providers.map(providerId => {
+      const key = getApiKey(providerId);
+      const name = localStorage.getItem(`datapresso_${providerId}_api_name`) || `默认 ${providerDisplayNames[providerId]} Key`;
+      const addedDate = localStorage.getItem(`datapresso_${providerId}_api_added_date`) || new Date().toISOString().split('T')[0];
+      if (key) {
+        return { id: providerId, provider: providerId, name, key, addedDate };
+      }
+      return null;
+    }).filter(Boolean) as ApiKey[];
+    setManagedApiKeys(loadedKeys);
+  }, [getApiKey]); // Depend on getApiKey from context
+
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -40,21 +57,53 @@ const ApiKeysPage: React.FC = () => {
     setKeyFormData(prev => ({ ...prev, [name]: value as ApiKey['provider'] }));
   };
 
+  const validateApiKeyFormat = (provider: ApiKey['provider'], key: string): boolean => {
+    if (provider === 'openai' && !key.startsWith('sk-')) {
+      toast.error('OpenAI API Key 格式不正确，应以 "sk-" 开头。');
+      return false;
+    }
+    if (provider === 'anthropic' && !key.startsWith('sk-ant-')) {
+      toast.error('Anthropic API Key 格式不正确，应以 "sk-ant-" 开头。');
+      return false;
+    }
+    // Add other provider validations here
+    return true;
+  };
+
   const handleSubmit = () => {
     if (!keyFormData.name || !keyFormData.key || !keyFormData.provider) {
       toast.error("请填写所有必填项！");
       return;
     }
+
+    if (!validateApiKeyFormat(keyFormData.provider, keyFormData.key)) {
+      return;
+    }
+
+    saveApiKey(keyFormData.provider, keyFormData.key); // Use context's saveApiKey
+    // Store name and date for UI display, this is a simple approach, prefix with datapresso_
+    localStorage.setItem(`datapresso_${keyFormData.provider}_api_name`, keyFormData.name);
+    const addedDate = editingKey?.addedDate || new Date().toISOString().split('T')[0];
+    localStorage.setItem(`datapresso_${keyFormData.provider}_api_added_date`, addedDate);
+
+
     if (editingKey) {
-      setApiKeys(apiKeys.map(k => k.id === editingKey.id ? { ...editingKey, ...keyFormData } : k));
+      setManagedApiKeys(managedApiKeys.map(k => k.id === editingKey.id ? { ...editingKey, ...keyFormData, provider: keyFormData.provider, addedDate } : k));
       toast.success(`API密钥 "${keyFormData.name}" 已更新。`);
     } else {
       const newKey: ApiKey = {
-        id: String(Date.now()),
+        id: keyFormData.provider, // Using provider as ID for simplicity, assuming one key per provider for now
         ...keyFormData,
-        addedDate: new Date().toISOString().split('T')[0],
+        addedDate,
       };
-      setApiKeys([...apiKeys, newKey]);
+      // Avoid duplicates if adding again for the same provider
+      setManagedApiKeys(prevKeys => {
+        const existing = prevKeys.find(k => k.provider === newKey.provider);
+        if (existing) {
+          return prevKeys.map(k => k.provider === newKey.provider ? newKey : k);
+        }
+        return [...prevKeys, newKey];
+      });
       toast.success(`API密钥 "${keyFormData.name}" 已添加。`);
     }
     setIsFormOpen(false);
@@ -67,14 +116,42 @@ const ApiKeysPage: React.FC = () => {
     setKeyFormData({ provider: key.provider, name: key.name, key: key.key });
     setIsFormOpen(true);
   };
+const handleDelete = (keyId: string, provider: ApiKey['provider']) => {
+  // Use context's removeApiKey
+  removeContextApiKey(provider);
+  // Also remove UI-specific localStorage items
+  localStorage.removeItem(`datapresso_${provider}_api_name`);
+  localStorage.removeItem(`datapresso_${provider}_api_added_date`);
+  setManagedApiKeys(managedApiKeys.filter(k => k.id !== keyId));
+  toast.success("API密钥已删除。");
+};
 
-  const handleDelete = (keyId: string) => {
-    setApiKeys(apiKeys.filter(k => k.id !== keyId));
-    toast.success("API密钥已删除。");
-  };
   
   const toggleShowKey = (keyId: string) => {
     setShowKeyId(prev => prev === keyId ? null : keyId);
+  };
+
+  const testApiKeyConnection = async (provider: ApiKey['provider'], key: string) => {
+    toast.info(`正在测试 ${providerDisplayNames[provider]} 连接...`);
+    // Placeholder for actual API call
+    // Example:
+    // try {
+    //   const response = await fetchSomeProtectedEndpoint(provider, key);
+    //   if (response.ok) {
+    //     toast.success(`${providerDisplayNames[provider]} 连接成功!`);
+    //   } else {
+    //     toast.error(`${providerDisplayNames[provider]} 连接失败: ${response.statusText}`);
+    //   }
+    // } catch (error) {
+    //   toast.error(`${providerDisplayNames[provider]} 连接测试出错: ${error.message}`);
+    // }
+    setTimeout(() => { // Simulate API call
+        if (key && ((provider === 'openai' && key.startsWith('sk-')) || (provider === 'anthropic' && key.startsWith('sk-ant-')) || provider === 'deepseek' || provider === 'other')) {
+             toast.success(`${providerDisplayNames[provider]} 连接测试成功 (模拟)。`);
+        } else {
+            toast.error(`${providerDisplayNames[provider]} 连接测试失败 (模拟) - Key可能无效。`);
+        }
+    }, 1500);
   };
 
   const providerDisplayNames: Record<ApiKey['provider'], string> = {
@@ -107,14 +184,14 @@ const ApiKeysPage: React.FC = () => {
               <TableHead>名称/别名</TableHead>
               <TableHead>API密钥 (点击显示/隐藏)</TableHead>
               <TableHead className="w-[150px]">添加日期</TableHead>
-              <TableHead className="text-right w-[120px]">操作</TableHead>
+              <TableHead className="text-right w-[180px]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {apiKeys.length === 0 && (
+            {managedApiKeys.length === 0 && (
               <TableRow><TableCell colSpan={5} className="text-center text-gray-500 py-8">暂无API密钥</TableCell></TableRow>
             )}
-            {apiKeys.map((apiKey) => (
+            {managedApiKeys.map((apiKey) => (
               <TableRow key={apiKey.id}>
                 <TableCell className="font-medium">{providerDisplayNames[apiKey.provider]}</TableCell>
                 <TableCell>{apiKey.name}</TableCell>
@@ -127,8 +204,11 @@ const ApiKeysPage: React.FC = () => {
                   </div>
                 </TableCell>
                 <TableCell>{apiKey.addedDate}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" className="mr-1 hover:text-primary-dark" onClick={() => handleEdit(apiKey)}>
+                <TableCell className="text-right space-x-1">
+                  <Button variant="outline" size="sm" onClick={() => testApiKeyConnection(apiKey.provider, apiKey.key)}>
+                    测试连接
+                  </Button>
+                  <Button variant="ghost" size="icon" className="hover:text-primary-dark" onClick={() => handleEdit(apiKey)}>
                     <Edit size={16} />
                   </Button>
                   <AlertDialog>
@@ -146,7 +226,7 @@ const ApiKeysPage: React.FC = () => {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>取消</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(apiKey.id)} className="bg-destructive hover:bg-destructive/90">删除</AlertDialogAction>
+                        <AlertDialogAction onClick={() => handleDelete(apiKey.id, apiKey.provider)} className="bg-destructive hover:bg-destructive/90">删除</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>

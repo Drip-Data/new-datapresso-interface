@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { useApiKeys } from '@/contexts/ApiKeysContext';
+import { SUPPORTED_PROVIDERS, PREDEFINED_MODELS } from '@/config/llmConfig';
+import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,13 +17,14 @@ interface ModelOption {
 }
 
 const GenerationConfigPanel = () => {
+  const { getApiKey, isKeyStored } = useApiKeys();
   const [genSeedDataSourceType, setGenSeedDataSourceType] = useState("default_upstream");
   const [genCustomSeedDataPath, setGenCustomSeedDataPath] = useState("");
   const [genStrategy, setGenStrategy] = useState("reasoning_distillation");
   const [genCount, setGenCount] = useState(100);
   const [batchSize, setBatchSize] = useState(10);
   const [topicDescription, setTopicDescription] = useState("");
-  const [apiProvider, setApiProvider] = useState("openai");
+  const [apiProvider, setApiProvider] = useState(SUPPORTED_PROVIDERS.find(p => p.requiresApiKey)?.id || SUPPORTED_PROVIDERS[0].id);
   const [selectedModel, setSelectedModel] = useState("");
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [temperature, setTemperature] = useState(0.7);
@@ -31,20 +35,41 @@ const GenerationConfigPanel = () => {
   const [genOutputFormat, setGenOutputFormat] = useState("jsonl");
 
   useEffect(() => {
-    const fetchModels = async (provider: string) => {
-      console.log(`Fetching models for provider: ${provider}`);
-      await new Promise(resolve => setTimeout(resolve, 300)); // Simulate API delay
-      let models: ModelOption[] = [];
-      if (provider === "openai") models = [{ value: "gpt-4", label: "GPT-4" }, { value: "gpt-4-turbo", label: "GPT-4 Turbo" }, { value: "gpt-3.5-turbo", label: "GPT-3.5-Turbo" }];
-      else if (provider === "anthropic") models = [{ value: "claude-3-opus", label: "Claude 3 Opus" }, { value: "claude-3-sonnet", label: "Claude 3 Sonnet" }, { value: "claude-2.1", label: "Claude 2.1" }];
-      else if (provider === "deepseek") models = [{ value: "deepseek-coder", label: "DeepSeek Coder" }, { value: "deepseek-llm", label: "DeepSeek LLM" }];
-      else if (provider === "local") models = [{ value: "local-model-1", label: "本地模型 1" }];
-      setAvailableModels(models);
-      if (models.length > 0) setSelectedModel(models[0].value);
-      else setSelectedModel("");
-    };
-    if (apiProvider) fetchModels(apiProvider);
-  }, [apiProvider]);
+    const currentProviderConfig = SUPPORTED_PROVIDERS.find(p => p.id === apiProvider);
+    if (currentProviderConfig?.requiresApiKey && !isKeyStored(apiProvider)) {
+      toast.error(`请先前往API Key设置页面填写 ${currentProviderConfig.name} 的 API Key`);
+      setAvailableModels([]);
+      setSelectedModel("");
+      return;
+    }
+
+    const modelsForProvider = PREDEFINED_MODELS[apiProvider] || [];
+    const modelOptions = modelsForProvider.map(modelName => ({ value: modelName, label: modelName }));
+    setAvailableModels(modelOptions);
+
+    if (modelOptions.length > 0) {
+      // Try to keep the previously selected model if it's still available, otherwise pick the first one
+      const currentSelectedModelStillAvailable = modelOptions.some(m => m.value === selectedModel);
+      if (currentSelectedModelStillAvailable) {
+        // No change needed for setSelectedModel if it's already good
+      } else {
+        setSelectedModel(modelOptions[0].value);
+      }
+    } else {
+      setSelectedModel("");
+    }
+  }, [apiProvider, isKeyStored, selectedModel]); // Added selectedModel to dependencies to re-evaluate if it becomes invalid
+
+  const handleProviderChange = (newProviderId: string) => {
+    const providerConfig = SUPPORTED_PROVIDERS.find(p => p.id === newProviderId);
+    if (providerConfig?.requiresApiKey && !isKeyStored(newProviderId)) {
+      toast.error(`请先前往API Key设置页面填写 ${providerConfig.name} 的 API Key`);
+      setAvailableModels([]);
+      setSelectedModel("");
+    }
+    setApiProvider(newProviderId);
+    // Model list update will be handled by the useEffect hook
+  };
 
   const formSectionClass = "mb-8"; // Increased from mb-6 for more spacing
   const formSectionTitleClass = "text-md font-bold text-text-primary-html mb-3"; // Changed font-semibold to font-bold
@@ -137,8 +162,28 @@ const GenerationConfigPanel = () => {
         <div className={`${formSectionClass} bg-slate-50 p-4 rounded-lg`}>
           <h4 className={formSectionTitleClass}>模型配置</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3"> {/* Adjusted gap */}
-            <div className={formGroupClass}><Label htmlFor="api-provider" className={formLabelClass}>服务商</Label><Select value={apiProvider} onValueChange={setApiProvider}><SelectTrigger id="api-provider" className={formControlSmClass}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="openai">OpenAI</SelectItem><SelectItem value="anthropic">Anthropic</SelectItem><SelectItem value="deepseek">DeepSeek</SelectItem><SelectItem value="local">本地模型</SelectItem></SelectContent></Select></div>
-            <div className={formGroupClass}><Label htmlFor="selected-model" className={formLabelClass}>模型</Label><Select value={selectedModel} onValueChange={setSelectedModel} disabled={availableModels.length === 0}><SelectTrigger id="selected-model" className={formControlSmClass}><SelectValue placeholder={availableModels.length === 0 && apiProvider ? "加载中..." : (availableModels.length === 0 ? "请先选择服务商" : "选择模型")} /></SelectTrigger><SelectContent>{availableModels.map((model) => (<SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>))}</SelectContent></Select></div>
+            <div className={formGroupClass}>
+              <Label htmlFor="api-provider" className={formLabelClass}>服务商</Label>
+              <Select value={apiProvider} onValueChange={handleProviderChange}>
+                <SelectTrigger id="api-provider" className={formControlSmClass}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_PROVIDERS.map(provider => (
+                    <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={formGroupClass}>
+              <Label htmlFor="selected-model" className={formLabelClass}>模型</Label>
+              <Select value={selectedModel} onValueChange={setSelectedModel} disabled={availableModels.length === 0}>
+                <SelectTrigger id="selected-model" className={formControlSmClass}>
+                  <SelectValue placeholder={availableModels.length === 0 ? "请先选择或配置服务商" : "选择模型"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((model) => (<SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
